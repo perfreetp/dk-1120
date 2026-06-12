@@ -73,9 +73,25 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
 
     case 'REMOVE_CANDIDATE': {
       if (!state.session) return state;
+      const candidateId = action.payload;
+      const candidateToRemove = state.session.candidates.find(c => c.id === candidateId);
+      
+      const updatedMembers = state.session.members.map(member => {
+        const hadVoted = member.votes.includes(candidateId);
+        if (!hadVoted) return member;
+        
+        const newVotes = member.votes.filter(id => id !== candidateId);
+        return {
+          ...member,
+          hasVoted: newVotes.length > 0,
+          votes: newVotes,
+        };
+      });
+      
       const updatedSession = {
         ...state.session,
-        candidates: state.session.candidates.filter(c => c.id !== action.payload),
+        candidates: state.session.candidates.filter(c => c.id !== candidateId),
+        members: updatedMembers,
         updatedAt: new Date().toISOString(),
       };
       currentSessionStorage.set(updatedSession);
@@ -177,12 +193,14 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
         if (member.id !== memberId) return member;
         
         const hasVoted = member.votes.includes(candidateId);
+        const newVotes = hasVoted 
+          ? member.votes.filter(id => id !== candidateId)
+          : [...member.votes, candidateId];
+        
         return {
           ...member,
-          hasVoted: true,
-          votes: hasVoted 
-            ? member.votes.filter(id => id !== candidateId)
-            : [...member.votes, candidateId],
+          hasVoted: newVotes.length > 0,
+          votes: newVotes,
         };
       });
       

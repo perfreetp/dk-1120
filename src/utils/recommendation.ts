@@ -1,16 +1,17 @@
 import { Candidate, Member, VotingSession } from '../types';
 
 export function generateRecommendation(session: VotingSession): Candidate[] {
-  const { candidates, members } = session;
+  const { candidates, members, blacklistEnabled } = session;
   
   if (members.length === 0) {
     return candidates;
   }
   
-  const blacklistThreshold = Math.floor(members.length / 2);
-  const validCandidates = candidates.filter(c => 
-    c.blacklistedBy.length < blacklistThreshold
-  );
+  const blacklistThreshold = Math.max(1, Math.ceil(members.length / 2));
+  
+  const validCandidates = blacklistEnabled 
+    ? candidates.filter(c => c.blacklistedBy.length < blacklistThreshold)
+    : candidates;
   
   const scoredCandidates = validCandidates.map(candidate => {
     let score = 0;
@@ -20,8 +21,10 @@ export function generateRecommendation(session: VotingSession): Candidate[] {
     const timeScore = calculateTimeScore(candidate, members);
     score += timeScore * 5;
     
-    const blacklistPenalty = (candidate.blacklistedBy.length / members.length) * -20;
-    score += blacklistPenalty;
+    if (blacklistEnabled && candidate.blacklistedBy.length > 0) {
+      const blacklistPenalty = (candidate.blacklistedBy.length / members.length) * -20;
+      score += blacklistPenalty;
+    }
     
     return { ...candidate, score };
   });

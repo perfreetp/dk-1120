@@ -41,10 +41,10 @@ export function ResultsPage() {
   const votedMembers = members.filter(m => m.hasVoted).length;
   const unvotedMembers = members.filter(m => !m.hasVoted);
   
-  const blacklistThreshold = members.length > 0 ? Math.floor(members.length / 2) : 0;
-  const blacklistedCandidates = candidates.filter(c => 
-    c.blacklistedBy.length >= blacklistThreshold && c.blacklistedBy.length > 0
-  );
+  const blacklistThreshold = members.length > 0 ? Math.max(1, Math.ceil(members.length / 2)) : 1;
+  const blacklistedCandidates = blacklistEnabled 
+    ? candidates.filter(c => c.blacklistedBy.length >= blacklistThreshold && c.blacklistedBy.length > 0)
+    : [];
 
   const handleFinalize = (candidateId: string) => {
     if (confirm('确定要固定这个方案吗？固定后将无法更改。')) {
