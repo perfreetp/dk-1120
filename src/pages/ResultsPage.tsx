@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trophy, Share2, Check, Crown, AlertTriangle, BarChart3, Users } from 'lucide-react';
+import { Trophy, Share2, Check, Crown, AlertTriangle, BarChart3, Users, Bell } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { PageContainer } from '../components/layout/PageContainer';
 import { Card } from '../components/ui/Card';
@@ -13,6 +13,7 @@ export function ResultsPage() {
   const navigate = useNavigate();
   const { state, finalizeDecision } = useVoting();
   const [copied, setCopied] = useState(false);
+  const [reminderCopied, setReminderCopied] = useState(false);
 
   const session = state.session;
   const recommendations = state.recommendations;
@@ -38,10 +39,11 @@ export function ResultsPage() {
   const { candidates, members, blacklistEnabled } = session;
   const totalVotes = candidates.reduce((sum, c) => sum + c.votes, 0);
   const votedMembers = members.filter(m => m.hasVoted).length;
+  const unvotedMembers = members.filter(m => !m.hasVoted);
   
-  const blacklistThreshold = Math.floor(members.length / 2);
+  const blacklistThreshold = members.length > 0 ? Math.floor(members.length / 2) : 0;
   const blacklistedCandidates = candidates.filter(c => 
-    c.blacklistedBy.length >= blacklistThreshold
+    c.blacklistedBy.length >= blacklistThreshold && c.blacklistedBy.length > 0
   );
 
   const handleFinalize = (candidateId: string) => {
@@ -57,6 +59,16 @@ export function ResultsPage() {
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const handleReminder = () => {
+    const unvotedNames = unvotedMembers.map(m => m.name).join('、');
+    const text = `@${unvotedNames} 快来投票啦！\n${session.name} 还有投票待确认~`;
+    
+    navigator.clipboard.writeText(text).then(() => {
+      setReminderCopied(true);
+      setTimeout(() => setReminderCopied(false), 2000);
     });
   };
 
@@ -169,23 +181,40 @@ export function ResultsPage() {
           )}
 
           <Card>
-            <h3 className="font-bold flex items-center gap-2 mb-4">
-              <Users className="text-accent" />
-              投票成员
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold flex items-center gap-2">
+                <Users className="text-accent" />
+                投票成员
+              </h3>
+              {unvotedMembers.length > 0 && (
+                <Button 
+                  onClick={handleReminder} 
+                  size="sm" 
+                  variant="secondary"
+                >
+                  {reminderCopied ? <Check size={16} /> : <Bell size={16} />}
+                  {reminderCopied ? '已复制' : '提醒未投票'}
+                </Button>
+              )}
+            </div>
             <div className="space-y-2">
               {members.map(member => (
                 <div 
                   key={member.id}
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                  className={`flex items-center justify-between p-3 rounded-lg ${
+                    member.hasVoted ? 'bg-gray-50' : 'bg-warning bg-opacity-10 border-2 border-warning'
+                  }`}
                 >
                   <div className="flex items-center gap-2">
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                      member.hasVoted ? 'bg-success' : 'bg-gray-400'
+                      member.hasVoted ? 'bg-success' : 'bg-warning'
                     }`}>
                       {member.name[0]}
                     </div>
-                    <span className="font-medium">{member.name}</span>
+                    <span className={`font-medium ${member.hasVoted ? '' : 'text-warning'}`}>
+                      {member.name}
+                      {!member.hasVoted && ' ⏰'}
+                    </span>
                   </div>
                   <Tag variant={member.hasVoted ? 'secondary' : 'default'}>
                     {member.hasVoted ? `投票 ${member.votes.length} 项` : '未投票'}
@@ -193,6 +222,14 @@ export function ResultsPage() {
                 </div>
               ))}
             </div>
+            {unvotedMembers.length > 0 && (
+              <div className="mt-4 p-3 bg-warning bg-opacity-10 rounded-lg">
+                <p className="text-sm text-warning flex items-center gap-2">
+                  <Bell size={16} />
+                  还有 {unvotedMembers.length} 人未投票：{unvotedMembers.map(m => m.name).join('、')}
+                </p>
+              </div>
+            )}
           </Card>
         </div>
       </PageContainer>

@@ -8,20 +8,20 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { useVoting } from '../context/VotingContext';
 import { HistoryRecord, SCENARIOS } from '../types';
-import { historyStorage, preferencesStorage } from '../utils/storage';
+import { historyStorage, preferencesStorage, currentSessionStorage } from '../utils/storage';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
 export function HistoryPage() {
   const navigate = useNavigate();
-  useVoting();
+  const { createSession, addCandidate } = useVoting();
   const [showPrefsModal, setShowPrefsModal] = useState(false);
   const [preferences, setPreferences] = useState(preferencesStorage.get());
 
   const history = historyStorage.get();
 
   const handleReuse = (record: HistoryRecord) => {
-    const { createSession } = useVoting();
+    const savedSession = currentSessionStorage.get();
     
     createSession({
       name: `${record.sessionName} (新)`,
@@ -29,7 +29,20 @@ export function HistoryPage() {
       maxVotesPerPerson: preferences.defaultMaxVotes,
       blacklistEnabled: true,
       availableTimes: [],
+      members: savedSession?.members?.map(m => ({ name: m.name })) || [],
     });
+
+    if (savedSession?.candidates) {
+      savedSession.candidates.forEach(c => {
+        addCandidate({
+          name: c.name,
+          price: c.price,
+          distance: c.distance,
+          note: c.note,
+          category: c.category,
+        });
+      });
+    }
     
     navigate('/candidates');
   };

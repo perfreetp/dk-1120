@@ -13,7 +13,7 @@ import { SCENARIOS, Scenario } from '../types';
 
 export function LaunchPage() {
   const navigate = useNavigate();
-  const { createSession, addMember: addMemberToContext } = useVoting();
+  const { createSession } = useVoting();
   const [sessionName, setSessionName] = useState('');
   const [selectedScenario, setSelectedScenario] = useState<Scenario>('dining');
   const [maxVotes, setMaxVotes] = useState(3);
@@ -58,10 +58,7 @@ export function LaunchPage() {
       maxVotesPerPerson: maxVotes,
       blacklistEnabled,
       availableTimes: selectedTimes,
-    });
-
-    members.forEach(memberName => {
-      addMemberToContext(memberName);
+      members: members.map(name => ({ name })),
     });
 
     navigate('/candidates');

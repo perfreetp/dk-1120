@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, GripVertical, Sparkles, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, GripVertical, ArrowRight, Merge } from 'lucide-react';
 import { Header } from '../components/layout/Header';
 import { PageContainer } from '../components/layout/PageContainer';
 import { Card } from '../components/ui/Card';
@@ -11,10 +11,11 @@ import { Slider } from '../components/ui/Slider';
 import { Tag } from '../components/ui/Tag';
 import { useVoting } from '../context/VotingContext';
 import { Candidate } from '../types';
+import { jaroWinkler } from '../utils/recommendation';
 
 export function CandidatesPage() {
   const navigate = useNavigate();
-  const { state, addCandidate, removeCandidate } = useVoting();
+  const { state, addCandidate, removeCandidate, mergeCandidates } = useVoting();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newCandidate, setNewCandidate] = useState({
     name: '',
@@ -22,6 +23,35 @@ export function CandidatesPage() {
     distance: 3,
     note: '',
   });
+  const [similarPairs, setSimilarPairs] = useState<Array<{ candidates: Candidate[]; similarity: number }>>([]);
+
+  useEffect(() => {
+    if (!state.session) return;
+    
+    const pairs: Array<{ candidates: Candidate[]; similarity: number }> = [];
+    const { candidates } = state.session;
+    
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = i + 1; j < candidates.length; j++) {
+        const similarity = jaroWinkler(candidates[i].name, candidates[j].name);
+        if (similarity >= 0.7) {
+          pairs.push({
+            candidates: [candidates[i], candidates[j]],
+            similarity,
+          });
+        }
+      }
+    }
+    
+    setSimilarPairs(pairs);
+  }, [state.session]);
+
+  const handleMerge = (candidatesToMerge: Candidate[]) => {
+    if (candidatesToMerge.length >= 2) {
+      mergeCandidates(candidatesToMerge.map(c => c.id));
+      setShowMergeModal(false);
+    }
+  };
 
   const handleAddCandidate = () => {
     if (!newCandidate.name.trim()) {
@@ -117,16 +147,35 @@ export function CandidatesPage() {
             </div>
           )}
 
-          {candidates.length >= 2 && (
+          {similarPairs.length > 0 && (
             <Card className="bg-secondary bg-opacity-10 border-2 border-secondary">
-              <div className="flex items-center gap-3">
-                <Sparkles className="text-secondary" size={24} />
+              <div className="flex items-center gap-3 mb-3">
+                <Merge className="text-secondary" size={24} />
                 <div className="flex-1">
                   <h4 className="font-bold text-secondary">智能合并建议</h4>
                   <p className="text-sm text-text-secondary mt-1">
-                    检测到 {candidates.length} 个候选项，可能存在相似选项
+                    检测到 {similarPairs.length} 组相似选项
                   </p>
                 </div>
+              </div>
+              <div className="space-y-2">
+                {similarPairs.map((pair, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {pair.candidates.map((c, i) => (
+                        <span key={c.id} className="font-medium">
+                          {c.name}{i < pair.candidates.length - 1 && ' + '}
+                        </span>
+                      ))}
+                    </div>
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleMerge(pair.candidates)}
+                    >
+                      合并
+                    </Button>
+                  </div>
+                ))}
               </div>
             </Card>
           )}

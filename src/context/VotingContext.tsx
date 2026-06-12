@@ -17,9 +17,10 @@ interface VotingState {
 }
 
 type VotingAction =
-  | { type: 'CREATE_SESSION'; payload: Omit<VotingSession, 'id' | 'createdAt' | 'updatedAt' | 'candidates' | 'members' | 'status'> }
+  | { type: 'CREATE_SESSION'; payload: Omit<VotingSession, 'id' | 'createdAt' | 'updatedAt' | 'candidates' | 'members' | 'status'> & { members?: Member[] } }
   | { type: 'ADD_CANDIDATE'; payload: Omit<Candidate, 'id' | 'votes' | 'blacklistedBy'> }
   | { type: 'REMOVE_CANDIDATE'; payload: string }
+  | { type: 'MERGE_CANDIDATES'; payload: string[] }
   | { type: 'ADD_MEMBER'; payload: Omit<Member, 'id' | 'hasVoted' | 'availableTimes' | 'votes' | 'blacklisted'> }
   | { type: 'REMOVE_MEMBER'; payload: string }
   | { type: 'VOTE'; payload: { memberId: string; candidateId: string } }
@@ -77,6 +78,40 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
         candidates: state.session.candidates.filter(c => c.id !== action.payload),
         updatedAt: new Date().toISOString(),
       };
+      currentSessionStorage.set(updatedSession);
+      const recommendations = generateRecommendation(updatedSession);
+      return { ...state, session: updatedSession, recommendations };
+    }
+
+    case 'MERGE_CANDIDATES': {
+      if (!state.session) return state;
+      const candidateIds = action.payload;
+      const candidatesToMerge = state.session.candidates.filter(c => 
+        candidateIds.includes(c.id)
+      );
+      
+      if (candidatesToMerge.length < 2) return state;
+      
+      const mergedCandidate: Candidate = {
+        id: candidatesToMerge[0].id,
+        name: candidatesToMerge[0].name,
+        price: Math.round(candidatesToMerge.reduce((sum, c) => sum + c.price, 0) / candidatesToMerge.length),
+        distance: Math.round(candidatesToMerge.reduce((sum, c) => sum + c.distance, 0) / candidatesToMerge.length),
+        note: candidatesToMerge.map(c => c.note).filter(Boolean).join('; '),
+        votes: candidatesToMerge.reduce((sum, c) => sum + c.votes, 0),
+        blacklistedBy: [...new Set(candidatesToMerge.flatMap(c => c.blacklistedBy))],
+      };
+      
+      const remainingCandidates = state.session.candidates.filter(c => 
+        !candidateIds.includes(c.id)
+      );
+      
+      const updatedSession = {
+        ...state.session,
+        candidates: [...remainingCandidates, mergedCandidate],
+        updatedAt: new Date().toISOString(),
+      };
+      
       currentSessionStorage.set(updatedSession);
       const recommendations = generateRecommendation(updatedSession);
       return { ...state, session: updatedSession, recommendations };
@@ -264,9 +299,10 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
 
 interface VotingContextType {
   state: VotingState;
-  createSession: (data: { name: string; scenario: Scenario; maxVotesPerPerson: number; blacklistEnabled: boolean; availableTimes: string[] }) => void;
+  createSession: (data: { name: string; scenario: Scenario; maxVotesPerPerson: number; blacklistEnabled: boolean; availableTimes: string[]; members?: Array<{ name: string }> }) => void;
   addCandidate: (candidate: Omit<Candidate, 'id' | 'votes' | 'blacklistedBy'>) => void;
   removeCandidate: (id: string) => void;
+  mergeCandidates: (candidateIds: string[]) => void;
   addMember: (name: string) => void;
   removeMember: (id: string) => void;
   vote: (memberId: string, candidateId: string) => void;
@@ -290,7 +326,16 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const createSession = (data: { name: string; scenario: Scenario; maxVotesPerPerson: number; blacklistEnabled: boolean; availableTimes: string[] }) => {
+  const createSession = (data: { name: string; scenario: Scenario; maxVotesPerPerson: number; blacklistEnabled: boolean; availableTimes: string[]; members?: Array<{ name: string }> }) => {
+    const initialMembers: Member[] = (data.members || []).map(m => ({
+      id: generateId(),
+      name: m.name,
+      hasVoted: false,
+      availableTimes: [],
+      votes: [],
+      blacklisted: [],
+    }));
+    
     dispatch({ 
       type: 'CREATE_SESSION', 
       payload: { 
@@ -303,7 +348,8 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
         availableTimes: data.availableTimes,
         createdAt: '',
         updatedAt: '',
-        status: 'active'
+        status: 'active',
+        members: initialMembers,
       } as any
     });
   };
@@ -314,6 +360,10 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
 
   const removeCandidate = (id: string) => {
     dispatch({ type: 'REMOVE_CANDIDATE', payload: id });
+  };
+
+  const mergeCandidates = (candidateIds: string[]) => {
+    dispatch({ type: 'MERGE_CANDIDATES', payload: candidateIds });
   };
 
   const addMember = (name: string) => {
@@ -358,6 +408,7 @@ export function VotingProvider({ children }: { children: React.ReactNode }) {
       createSession,
       addCandidate,
       removeCandidate,
+      mergeCandidates,
       addMember,
       removeMember,
       vote,
