@@ -8,7 +8,7 @@ import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { useVoting } from '../context/VotingContext';
 import { HistoryRecord, SCENARIOS } from '../types';
-import { historyStorage, preferencesStorage, currentSessionStorage } from '../utils/storage';
+import { historyStorage, preferencesStorage } from '../utils/storage';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 
@@ -21,19 +21,17 @@ export function HistoryPage() {
   const history = historyStorage.get();
 
   const handleReuse = (record: HistoryRecord) => {
-    const savedSession = currentSessionStorage.get();
-    
     createSession({
       name: `${record.sessionName} (新)`,
       scenario: record.scenario,
       maxVotesPerPerson: preferences.defaultMaxVotes,
       blacklistEnabled: true,
       availableTimes: [],
-      members: savedSession?.members?.map(m => ({ name: m.name })) || [],
+      members: record.members || [],
     });
 
-    if (savedSession?.candidates) {
-      savedSession.candidates.forEach(c => {
+    if (record.candidates) {
+      record.candidates.forEach(c => {
         addCandidate({
           name: c.name,
           price: c.price,

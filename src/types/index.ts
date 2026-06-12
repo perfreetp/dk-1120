@@ -52,6 +52,8 @@ export interface HistoryRecord {
   memberCount: number;
   finalDecision: string;
   completedAt: string;
+  candidates?: Array<{ name: string; price: number; distance: number; note: string; category?: string }>;
+  members?: Array<{ name: string }>;
 }
 
 export const SCENARIOS: Record<Scenario, { label: string; emoji: string }> = {

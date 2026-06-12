@@ -44,7 +44,7 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
         ...action.payload,
         id: generateId(),
         candidates: [],
-        members: [],
+        members: action.payload.members || [],
         status: 'active',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -92,13 +92,22 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
       
       if (candidatesToMerge.length < 2) return state;
       
+      const voters = new Set<string>();
+      candidatesToMerge.forEach(candidate => {
+        state.session!.members.forEach(member => {
+          if (member.votes.includes(candidate.id)) {
+            voters.add(member.id);
+          }
+        });
+      });
+      
       const mergedCandidate: Candidate = {
         id: candidatesToMerge[0].id,
         name: candidatesToMerge[0].name,
         price: Math.round(candidatesToMerge.reduce((sum, c) => sum + c.price, 0) / candidatesToMerge.length),
         distance: Math.round(candidatesToMerge.reduce((sum, c) => sum + c.distance, 0) / candidatesToMerge.length),
         note: candidatesToMerge.map(c => c.note).filter(Boolean).join('; '),
-        votes: candidatesToMerge.reduce((sum, c) => sum + c.votes, 0),
+        votes: voters.size,
         blacklistedBy: [...new Set(candidatesToMerge.flatMap(c => c.blacklistedBy))],
       };
       
@@ -106,9 +115,23 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
         !candidateIds.includes(c.id)
       );
       
+      const updatedMembers = state.session.members.map(member => {
+        const hasVotedForMerged = candidatesToMerge.some(c => member.votes.includes(c.id));
+        if (!hasVotedForMerged) return member;
+        
+        return {
+          ...member,
+          votes: [
+            mergedCandidate.id,
+            ...member.votes.filter(id => !candidateIds.includes(id))
+          ],
+        };
+      });
+      
       const updatedSession = {
         ...state.session,
         candidates: [...remainingCandidates, mergedCandidate],
+        members: updatedMembers,
         updatedAt: new Date().toISOString(),
       };
       
@@ -270,6 +293,14 @@ function votingReducer(state: VotingState, action: VotingAction): VotingState {
         memberCount: updatedSession.members.length,
         finalDecision: candidate.name,
         completedAt: new Date().toISOString(),
+        candidates: updatedSession.candidates.map(c => ({
+          name: c.name,
+          price: c.price,
+          distance: c.distance,
+          note: c.note,
+          category: c.category,
+        })),
+        members: updatedSession.members.map(m => ({ name: m.name })),
       };
       
       historyStorage.add(historyRecord);

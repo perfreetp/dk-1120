@@ -49,7 +49,6 @@ export function CandidatesPage() {
   const handleMerge = (candidatesToMerge: Candidate[]) => {
     if (candidatesToMerge.length >= 2) {
       mergeCandidates(candidatesToMerge.map(c => c.id));
-      setShowMergeModal(false);
     }
   };
 
